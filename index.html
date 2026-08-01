@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peta Interaktif Desa Tulungrejo, Kota Batu</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cabin:wght@400;600;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: linear-gradient(145deg, #1a2632 0%, #2c3e50 60%, #34495e 100%);
+            font-family: 'Cabin', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .wrapper {
+            display: flex;
+            gap: 0;
+            width: 100%;
+            max-width: 1400px;
+            position: relative;
+            min-height: 0;
+        }
+
+        /* ====== MAP CONTAINER ====== */
+        .map-container {
+            flex: 1;
+            min-width: 0;
+            min-height: 600px;
+            background: #d4ebd0;
+            border: 12px solid #4a2f1b;
+            outline: 3px solid #7c5328;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.55);
+            position: relative;
+            overflow: hidden;
+            border-radius: 6px;
+            transition: all 0.35s ease;
+        }
+        .map-container.shrink {
+            border-radius: 6px 0 0 6px;
+        }
+
+        .terrain {
+            position: absolute; inset: 0;
+            background: linear-gradient(160deg, #a5d89c 0%, #8fcd86 35%, #7cbe72 70%, #6eae63 100%);
+            z-index: 0;
+        }
+
+        /* Google Maps Background */
+        .map-background {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+        .map-background iframe {
+            width: 100%; height: 100%;
+            border: 0;
+        }
+
+        /* SVG Layer */
+        .svg-layer { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+        .road-main-stroke  { stroke: #e8dcc2; stroke-width: 13; fill: none; stroke-linecap: round; }
+        .road-main-edge    { stroke: #b7a689; stroke-width: 17; fill: none; stroke-linecap: round; opacity: .9; }
+        .road-branch-stroke{ stroke: #e8dcc2; stroke-width: 7;  fill: none; stroke-linecap: round; }
+        .road-branch-edge  { stroke: #b7a689; stroke-width: 10; fill: none; stroke-linecap: round; opacity: .8; }
+        .road-dash         { stroke: #ffffff; stroke-width: 2.4; fill: none; stroke-dasharray: 14 12; opacity: .85; }
+        .river { stroke: #4fa8d8; stroke-width: 6; fill: none; stroke-linecap: round; opacity: .85; }
+        .forest-label, .mountain-label { font-family: 'Permanent Marker', cursive; fill: #3d5c33; font-size: 15px; opacity: .85; }
+        .mountain-label { fill: #5d5d5d; }
+
+        /* Header */
+        .map-header {
+            position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+            background: #f4e8c1; border: 3px solid #7c5328; padding: 8px 36px;
+            text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,.25);
+            z-index: 10; border-radius: 8px; white-space: nowrap;
+        }
+        .map-header h1 { font-family: 'Permanent Marker', cursive; font-size: 22px; color: #3d2314; letter-spacing: 1px; }
+        .map-header p  { font-size: 11px; font-weight: 700; color: #5c3a21; text-transform: uppercase; letter-spacing: .5px; }
+
+        /* Compass */
+        .compass {
+            position: absolute; top: 20px; right: 20px; width: 50px; height: 50px;
+            background: radial-gradient(circle, #fdf6e3 0%, #f4e8c1 70%);
+            border: 2px solid #7c5328; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: 700; font-size: 14px; color: #3d2314;
+            z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,.25);
+            user-select: none;
+        }
+        .compass::before { content: '▲'; position: absolute; top: 2px; color: #c0392b; font-size: 11px; }
+
+        /* Search */
+        .search-box {
+            position: absolute; top: 85px; left: 14px; z-index: 10;
+            background: rgba(255,255,255,.95); border: 2px solid #7c5328; border-radius: 30px;
+            display: flex; align-items: center; padding: 5px 12px; box-shadow: 0 4px 10px rgba(0,0,0,.2);
+        }
+        .search-box i { color: #7c5328; font-size: 13px; margin-right: 7px; }
+        .search-box input { border: none; outline: none; font-family: 'Cabin', sans-serif; font-size: 12px; font-weight: 600; color: #2c3e50; background: transparent; width: 150px; }
+        .search-box input::placeholder { color: #999; }
+        .search-count { font-size: 9px; font-weight: 700; color: #fff; background: #7c5328; border-radius: 12px; padding: 2px 7px; margin-left: 6px; white-space: nowrap; }
+
+        /* ====== LANDMARK ====== */
+        .landmark {
+            position: absolute; z-index: 5; text-align: center; cursor: pointer;
+            transition: transform .2s ease, filter .2s ease; transform-origin: bottom center;
+        }
+        .landmark:hover { transform: scale(1.12); filter: drop-shadow(0 4px 6px rgba(0,0,0,.35)); z-index: 6; }
+        .landmark .icon {
+            background: #fff; border: 2.5px solid #5c3a21; border-radius: 50%;
+            width: 38px; height: 38px; display: flex; justify-content: center; align-items: center;
+            margin: 0 auto 3px; font-size: 18px; box-shadow: 0 3px 7px rgba(0,0,0,.25); position: relative;
+        }
+        .landmark .icon::after {
+            content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+            border: 5px solid transparent; border-top-color: #5c3a21; border-bottom: none;
+        }
+        .landmark .label {
+            background: rgba(255,255,255,.94); padding: 2px 7px; font-size: 9px; font-weight: 700;
+            color: #2c3e50; border: 1px solid #b5aba0; border-radius: 5px; white-space: nowrap;
+            box-shadow: 0 2px 5px rgba(0,0,0,.15); display: inline-block;
+        }
+        .landmark.muted { opacity: .12; pointer-events: none; }
+        .landmark.active .icon { border-color: #e74c3c; box-shadow: 0 0 0 3px rgba(231,76,60,.4); }
+        .landmark.active .label { background: #e74c3c; color: #fff; border-color: #c0392b; }
+
+/* Posisi landmark - disesuaikan dengan peta satelit Google Maps */
+        /* Kawasan Barat (lereng Gn. Panderman) */
+        #m-santerra    { top: 42%; left: 8%; }
+        #m-kampoeng    { top: 38%; left: 17%; }
+        #m-cangar      { top: 80%; left: 12%; }
+
+        /* Kawasan Tengah (pusat desa, sepanjang Jl. Raya Tulungrejo) */
+        #m-balai       { top: 52%; left: 22%; }
+        #m-masjid      { top: 55%; left: 29%; }
+        #m-dolan       { top: 48%; left: 36%; }
+        #m-mikutovia   { top: 30%; left: 42%; }
+        #m-cafe-sawah  { top: 65%; left: 40%; }
+        #m-sekolah     { top: 50%; left: 48%; }
+        #m-park        { top: 74%; left: 34%; }
+        #m-pasar       { top: 68%; left: 50%; }
+        #m-puskesmas   { top: 58%; left: 56%; }
+
+/* Kawasan Timur (lereng Gn. Arjuno) */
+        #m-selecta     { top: 28%; left: 58%; }
+        #m-cobantalun  { top: 40%; left: 62%; }
+        #m-villa       { top: 44%; left: 64%; }
+        #m-pura        { top: 18%; left: 72%; }
+        #m-kebunapel   { top: 52%; left: 78%; }
+        #m-stroberi    { top: 60%; left: 70%; }
+
+        /* ====== LEGENDA ====== */
+        .legend {
+            position: absolute; bottom: 14px; right: 14px;
+            background: rgba(244,232,193,.95); border: 2px solid #7c5328; padding: 8px 12px;
+            border-radius: 7px; z-index: 10; box-shadow: 0 4px 10px rgba(0,0,0,.2); width: 150px;
+        }
+        .legend h3 { font-size: 11px; color: #3d2314; border-bottom: 1px solid #7c5328; padding-bottom: 3px; margin-bottom: 5px; text-align: center; }
+        .legend-item { display: flex; align-items: center; font-size: 9px; color: #333; margin-bottom: 2px; font-weight: 600; }
+        .legend-color { width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; border: 1px solid #333; flex-shrink: 0; }
+
+        /* ====== SIDE PANEL ====== */
+        .side-panel {
+            width: 0;
+            overflow: hidden;
+            background: #f4e8c1;
+            border: 2px solid #7c5328;
+            border-left: none;
+            border-radius: 0 6px 6px 0;
+            box-shadow: 8px 0 20px rgba(0,0,0,.3);
+            transition: width 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 20;
+        }
+        .side-panel.open {
+            width: 320px;
+            min-width: 320px;
+        }
+        .side-panel-inner {
+            width: 320px;
+            min-width: 320px;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow-y: auto;
+        }
+        .side-panel-inner::-webkit-scrollbar { width: 4px; }
+        .side-panel-inner::-webkit-scrollbar-track { background: #e8dcc2; }
+        .side-panel-inner::-webkit-scrollbar-thumb { background: #7c5328; border-radius: 10px; }
+
+        .panel-header {
+            background: linear-gradient(135deg, #5c3a21, #7c5328);
+            color: #fff;
+            padding: 16px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+        }
+        .panel-header .panel-icon {
+            font-size: 26px;
+            width: 46px; height: 46px;
+            background: rgba(255,255,255,.2);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .panel-header .panel-title { flex: 1; }
+        .panel-header .panel-title h2 { font-family: 'Permanent Marker', cursive; font-size: 17px; letter-spacing: .5px; }
+        .panel-header .panel-title p { font-size: 11px; opacity: .85; font-weight: 600; }
+        .panel-close {
+            position: absolute; top: 6px; right: 10px;
+            background: none; border: none;
+            color: rgba(255,255,255,.7); font-size: 20px;
+            cursor: pointer; transition: color .2s;
+        }
+        .panel-close:hover { color: #fff; }
+
+        .panel-body {
+            padding: 16px 18px;
+            flex: 1;
+        }
+        .panel-body .desc {
+            font-size: 12px;
+            line-height: 1.6;
+            color: #3d2314;
+            margin-bottom: 14px;
+        }
+        .panel-body .info-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 9px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #5c3a21;
+            margin-bottom: 7px;
+        }
+        .panel-body .info-row i {
+            width: 16px;
+            color: #7c5328;
+            font-size: 13px;
+            margin-top: 1px;
+        }
+
+        .social-section {
+            margin-top: 16px;
+            border-top: 2px dashed #b7a689;
+            padding-top: 12px;
+        }
+        .social-section h4 {
+            font-size: 12px;
+            color: #3d2314;
+            margin-bottom: 9px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .social-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .social-links a {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border-radius: 25px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #fff;
+            text-decoration: none;
+            transition: transform .2s, opacity .2s;
+        }
+        .social-links a:hover { transform: translateY(-2px); opacity: .9; }
+        .social-links a i { font-size: 13px; }
+        .social-links .sosmed-instagram { background: radial-gradient(circle at 30% 30%, #fdf497, #d6249f, #285aeb); }
+        .social-links .sosmed-facebook { background: #1877F2; }
+        .social-links .sosmed-youtube { background: #FF0000; }
+        .social-links .sosmed-tiktok { background: #000; }
+        .social-links .sosmed-twitter { background: #1DA1F2; }
+
+        .maps-section {
+            margin-top: 12px;
+            border-top: 2px dashed #b7a689;
+            padding-top: 12px;
+        }
+        .maps-section h4 {
+            font-size: 12px;
+            color: #3d2314;
+            margin-bottom: 9px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .maps-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 16px;
+            background: #4285F4;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 700;
+            font-size: 12px;
+            transition: transform .2s, background .2s;
+        }
+        .maps-btn:hover { transform: translateY(-2px); background: #3367d6; }
+        .maps-btn i { font-size: 16px; }
+
+        @media (max-width: 900px) {
+            body { padding: 10px; }
+            .wrapper { flex-direction: column; }
+            .map-container { min-height: 400px; }
+            .map-container.shrink { border-radius: 6px; }
+            .side-panel.open { width: 100%; min-width: 0; border-radius: 0 0 6px 6px; border-left: 2px solid #7c5328; border-top: none; }
+            .side-panel-inner { width: 100%; min-width: 0; }
+            .map-header h1 { font-size: 15px; }
+            .map-header { padding: 6px 16px; white-space: normal; }
+            .search-box input { width: 100px; }
+            .legend { width: 130px; padding: 6px 10px; }
+            .landmark .icon { width: 32px; height: 32px; font-size: 15px; }
+            .landmark .label { font-size: 8px; padding: 1px 6px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <div class="map-container" id="mapContainer">
+        <div class="terrain"></div>
+
+        <!-- Google Maps Background -->
+        <div class="map-background">
+            <iframe src="https://maps.google.com/maps?q=Desa+Tulungrejo+Kota+Batu+Jawa+Timur&t=h&z=14&output=embed" 
+                    loading="lazy" 
+                    referrerpolicy="no-referrer-when-downgrade"
+                    title="Google Maps Background">
+            </iframe>
+        </div>
+
+        <!-- SVG Layer -->
+        <svg class="svg-layer" viewBox="0 0 1000 600" preserveAspectRatio="none">
+            <polygon points="80,280 200,80 340,280" fill="#6b8c5e" opacity=".6"/>
+            <polygon points="120,240 200,100 290,240" fill="#7da06e" opacity=".5"/>
+            <polygon points="650,220 780,40 920,220" fill="#6b8c5e" opacity=".5"/>
+            <polygon points="690,190 780,60 880,190" fill="#7da06e" opacity=".4"/>
+            <ellipse cx="140" cy="310" rx="90" ry="50" fill="#4a7a3f" opacity=".35"/>
+            <ellipse cx="850" cy="280" rx="110" ry="60" fill="#4a7a3f" opacity=".3"/>
+            <path d="M 520,30 Q 500,150 440,220 Q 380,290 300,340 Q 220,390 120,420" class="river"/>
+            <path d="M 440,220 Q 480,260 520,280 Q 600,320 700,340" class="river" opacity=".6"/>
+            <path d="M 0,360 Q 120,340 200,330 Q 350,310 480,300 Q 620,290 780,280 Q 900,270 1000,260" class="road-main-edge"/>
+            <path d="M 0,360 Q 120,340 200,330 Q 350,310 480,300 Q 620,290 780,280 Q 900,270 1000,260" class="road-main-stroke"/>
+            <path d="M 0,360 Q 120,340 200,330 Q 350,310 480,300 Q 620,290 780,280 Q 900,270 1000,260" class="road-dash"/>
+            <path d="M 200,330 Q 180,250 140,160" class="road-branch-edge"/>
+            <path d="M 200,330 Q 180,250 140,160" class="road-branch-stroke"/>
+            <path d="M 480,300 Q 500,220 520,120" class="road-branch-edge"/>
+            <path d="M 480,300 Q 500,220 520,120" class="road-branch-stroke"/>
+            <path d="M 750,285 Q 760,380 780,440" class="road-branch-edge"/>
+            <path d="M 750,285 Q 760,380 780,440" class="road-branch-stroke"/>
+            <path d="M 300,320 Q 310,400 320,480" class="road-branch-edge"/>
+            <path d="M 300,320 Q 310,400 320,480" class="road-branch-stroke"/>
+            <text x="140" y="145" class="mountain-label">Gn. Panderman</text>
+            <text x="750" y="55" class="mountain-label">Gn. Arjuno</text>
+            <text x="130" y="340" class="forest-label">Hutan Pinus</text>
+            <text x="830" y="310" class="forest-label">Hutan Lindung</text>
+        </svg>
+
+<div class="map-header">
+            <h1>🗺️ PETA DESA TULUNGREJO</h1>
+            <p>Kecamatan Bumiaji • Kota Batu • Jawa Timur</p>
+            <p style="font-size:9px; margin-top:2px; color:#a03a17;">Kelompok 75 KKN MAs Tulungrejo</p>
+        </div>
+
+        <div class="compass">U</div>
+
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="Cari tempat..." oninput="filterLandmarks()">
+            <span class="search-count" id="searchCount">16</span>
+        </div>
+
+        <!-- LANDMARKS -->
+        <div class="landmark" id="m-santerra" data-name="Flora Wisata San Terra" onclick="openPanel('santerra')">
+            <div class="icon">🌸</div>
+            <div class="label">Flora Wisata San Terra</div>
+        </div>
+        <div class="landmark" id="m-selecta" data-name="Selecta Wisata" onclick="openPanel('selecta')">
+            <div class="icon">🌺</div>
+            <div class="label">Selecta Wisata</div>
+        </div>
+        <div class="landmark" id="m-cangar" data-name="Pemandian Air Panas Cangar" onclick="openPanel('cangar')">
+            <div class="icon">♨️</div>
+            <div class="label">Pemandian Air Panas Cangar</div>
+        </div>
+        <div class="landmark" id="m-kampoeng" data-name="Kampoeng Wisata Tulungrejo" onclick="openPanel('kampoeng')">
+            <div class="icon">🏘️</div>
+            <div class="label">Kampoeng Wisata</div>
+        </div>
+        <div class="landmark" id="m-dolan" data-name="Taman Dolan Batu" onclick="openPanel('dolan')">
+            <div class="icon">🎡</div>
+            <div class="label">Taman Dolan Batu</div>
+        </div>
+        <div class="landmark" id="m-balai" data-name="Balai Desa Tulungrejo" onclick="openPanel('balai')">
+            <div class="icon">🏛️</div>
+            <div class="label">Balai Desa Tulungrejo</div>
+        </div>
+        <div class="landmark" id="m-masjid" data-name="Masjid Baiturrahman" onclick="openPanel('masjid')">
+            <div class="icon">🕌</div>
+            <div class="label">Masjid Baiturrahman</div>
+        </div>
+        <div class="landmark" id="m-pura" data-name="Pura Luhur Giri Arjuna" onclick="openPanel('pura')">
+            <div class="icon">⛩️</div>
+            <div class="label">Pura Luhur Giri Arjuna</div>
+        </div>
+        <div class="landmark" id="m-sekolah" data-name="SDN Tulungrejo 01" onclick="openPanel('sekolah')">
+            <div class="icon">🏫</div>
+            <div class="label">SDN Tulungrejo 01</div>
+        </div>
+        <div class="landmark" id="m-puskesmas" data-name="Puskesmas Tulungrejo" onclick="openPanel('puskesmas')">
+            <div class="icon">🏥</div>
+            <div class="label">Puskesmas Tulungrejo</div>
+        </div>
+        <div class="landmark" id="m-pasar" data-name="Pasar Wisata Tulungrejo" onclick="openPanel('pasar')">
+            <div class="icon">🛒</div>
+            <div class="label">Pasar Wisata Tulungrejo</div>
+        </div>
+        <div class="landmark" id="m-park" data-name="Area Parkir Wisata" onclick="openPanel('park')">
+            <div class="icon">🅿️</div>
+            <div class="label">Area Parkir Wisata</div>
+        </div>
+        <div class="landmark" id="m-cafe-sawah" data-name="Cafe Sawah & Resto" onclick="openPanel('cafe-sawah')">
+            <div class="icon">☕</div>
+            <div class="label">Cafe Sawah & Resto</div>
+        </div>
+<div class="landmark" id="m-kebunapel" data-name="Kebun Apel Petik Langsung" onclick="openPanel('kebunapel')">
+            <div class="icon">🍎</div>
+            <div class="label">Kebun Apel Petik Langsung</div>
+        </div>
+        <div class="landmark" id="m-villa" data-name="Villa & Penginapan" onclick="openPanel('villa')">
+            <div class="icon">🏡</div>
+            <div class="label">Villa & Penginapan</div>
+        </div>
+        <div class="landmark" id="m-mikutovia" data-name="Mikutovia" onclick="openPanel('mikutovia')">
+            <div class="icon">🏔️</div>
+            <div class="label">Mikutovia</div>
+        </div>
+        <div class="landmark" id="m-cobantalun" data-name="Coban Talun Waterfall" onclick="openPanel('cobantalun')">
+            <div class="icon">🏞️</div>
+            <div class="label">Coban Talun Waterfall</div>
+        </div>
+        <div class="landmark" id="m-stroberi" data-name="Petik Stroberi Kebun Desa (Yeni)" onclick="openPanel('stroberi')">
+            <div class="icon">🍓</div>
+            <div class="label">Petik Stroberi (Yeni)</div>
+        </div>
+
+        <div class="legend">
+            <h3>Legenda</h3>
+            <div class="legend-item"><div class="legend-color" style="background:#27ae60;"></div> Wisata Alam</div>
+            <div class="legend-item"><div class="legend-color" style="background:#e67e22;"></div> Wisata Buatan</div>
+            <div class="legend-item"><div class="legend-color" style="background:#8e44ad;"></div> Bangunan Umum</div>
+            <div class="legend-item"><div class="legend-color" style="background:#d35400;"></div> Kuliner & Kafe</div>
+            <div class="legend-item"><div class="legend-color" style="background:#2980b9;"></div> Parkir & Fasilitas</div>
+        </div>
+    </div>
+
+    <div class="side-panel" id="sidePanel">
+        <div class="side-panel-inner" id="panelInner"></div>
+    </div>
+</div>
+
+<script>
+    const placesData = {
+        santerra: {
+            name: 'Flora Wisata San Terra',
+            icon: '🌸',
+            category: 'Wisata Alam',
+            description: 'Taman wisata bunga seluas 4 hektar dengan berbagai koleksi tanaman hias, bunga warna-warni, dan spot foto instagramable. Terletak di lereng Gunung Panderman, udara sejuk dan pemandangan indah.',
+            address: 'Jl. Raya Tulungrejo No. 145, Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Flora+Wisata+San+Terra+Kota+Batu',
+            social: { instagram: 'https://www.instagram.com/florawisata.santerra/', facebook: 'https://www.facebook.com/FloraSanTerraBatu/', youtube: 'https://www.youtube.com/@florasanterra', tiktok: 'https://www.tiktok.com/@florasanterra' }
+        },
+        selecta: {
+            name: 'Selecta Wisata',
+            icon: '🌺',
+            category: 'Wisata Alam',
+            description: 'Taman rekreasi dan wisata bunga legendaris di Kota Batu sejak 1930. Memiliki kolam renang, taman bunga yang indah, penginapan, dan wahana permainan keluarga.',
+            address: 'Jl. Raya Selecta No. 1, Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Selecta+Wisata+Kota+Batu',
+            social: { instagram: 'https://www.instagram.com/selecta_batu/', facebook: 'https://www.facebook.com/SelectaBatu/', youtube: 'https://www.youtube.com/@SelectaBatu', tiktok: 'https://www.tiktok.com/@selecta_batu' }
+        },
+        cangar: {
+            name: 'Pemandian Air Panas Cangar',
+            icon: '♨️',
+            category: 'Wisata Alam',
+            description: 'Pemandian air panas alami yang terletak di kaki Gunung Arjuno. Air panas belerangnya dipercaya baik untuk kesehatan kulit dan relaksasi. Dikelilingi hutan pinus yang asri.',
+            address: 'Desa Tulungrejo, Kec. Bumiaji, Kota Batu (arah Cangar)',
+            mapsUrl: 'https://maps.google.com/?q=Pemandian+Air+Panas+Cangar+Kota+Batu',
+            social: { instagram: 'https://www.instagram.com/explore/locations/1032787981/cangar-hot-spring/', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        kampoeng: {
+            name: 'Kampoeng Wisata Tulungrejo',
+            icon: '🏘️',
+            category: 'Wisata Buatan',
+            description: 'Kampung tematik dengan konsep wisata edukasi dan budaya. Pengunjung bisa belajar tentang pertanian, kerajinan lokal, dan kehidupan pedesaan yang asri di lereng gunung.',
+            address: 'Dusun Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Kampoeng+Wisata+Tulungrejo+Kota+Batu',
+            social: { instagram: 'https://www.instagram.com/explore/locations/1085654987/tulungrejo/', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        dolan: {
+            name: 'Taman Dolan Batu',
+            icon: '🎡',
+            category: 'Wisata Buatan',
+            description: 'Taman hiburan keluarga dengan berbagai wahana seru seperti bianglala, roller coaster, rumah hantu, dan taman air. Cocok untuk liburan keluarga dan anak-anak.',
+            address: 'Jl. Raya Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Taman+Dolan+Batu+Kota+Batu',
+            social: { instagram: 'https://www.instagram.com/tamandolanbatu/', facebook: 'https://www.facebook.com/TamanDolanBatu/', youtube: 'https://www.youtube.com/@tamandolanbatu', tiktok: 'https://www.tiktok.com/@tamandolanbatu' }
+        },
+        balai: {
+            name: 'Balai Desa Tulungrejo',
+            icon: '🏛️',
+            category: 'Bangunan Umum',
+            description: 'Kantor pelayanan administrasi Desa Tulungrejo. Pusat kegiatan pemerintahan desa dan pelayanan masyarakat Kecamatan Bumiaji, Kota Batu.',
+            address: 'Jl. Raya Tulungrejo No. 1, Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Balai+Desa+Tulungrejo+Kota+Batu',
+            social: { instagram: 'https://www.instagram.com/pemdes_tulungrejo/', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        masjid: {
+            name: 'Masjid Baiturrahman',
+            icon: '🕌',
+            category: 'Bangunan Umum',
+            description: 'Masjid utama di Desa Tulungrejo. Arsitektur megah dengan kubah besar dan menara yang indah. Menjadi pusat kegiatan keagamaan dan sosial masyarakat.',
+            address: 'Dusun Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Masjid+Baiturrahman+Tulungrejo+Kota+Batu',
+            social: { instagram: '#', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        pura: {
+            name: 'Pura Luhur Giri Arjuna',
+            icon: '⛩️',
+            category: 'Bangunan Umum',
+            description: 'Pura terbesar di Kota Batu yang terletak di lereng Gunung Arjuno. Tempat ibadah umat Hindu yang juga menjadi destinasi wisata budaya dengan arsitektur yang megah.',
+            address: 'Jl. Raya Selecta, Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Pura+Luhur+Giri+Arjuna+Kota+Batu',
+            social: { instagram: 'https://www.instagram.com/explore/locations/1032787981/pura-luhur-giri-arjuna/', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        sekolah: {
+            name: 'SDN Tulungrejo 01',
+            icon: '🏫',
+            category: 'Bangunan Umum',
+            description: 'Sekolah Dasar Negeri di Desa Tulungrejo yang melayani pendidikan anak-anak di wilayah Kecamatan Bumiaji, Kota Batu.',
+            address: 'Dusun Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=SDN+Tulungrejo+01+Kota+Batu',
+            social: { instagram: '#', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        puskesmas: {
+            name: 'Puskesmas Tulungrejo',
+            icon: '🏥',
+            category: 'Bangunan Umum',
+            description: 'Pusat Kesehatan Masyarakat (Puskesmas) yang melayani kesehatan warga Desa Tulungrejo dan sekitarnya di Kecamatan Bumiaji, Kota Batu.',
+            address: 'Jl. Raya Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Puskesmas+Tulungrejo+Kota+Batu',
+            social: { instagram: '#', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        pasar: {
+            name: 'Pasar Wisata Tulungrejo',
+            icon: '🛒',
+            category: 'Kuliner & Belanja',
+            description: 'Pasar tradisional yang menjual berbagai hasil bumi khas Batu seperti apel, jeruk, sayuran segar, serta oleh-oleh dan kerajinan lokal khas Tulungrejo.',
+            address: 'Jl. Raya Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Pasar+Wisata+Tulungrejo+Kota+Batu',
+            social: { instagram: '#', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        park: {
+            name: 'Area Parkir Wisata',
+            icon: '🅿️',
+            category: 'Fasilitas',
+            description: 'Area parkir luas yang melayani pengunjung wisata di kawasan Tulungrejo. Aman, nyaman, dan dekat dengan berbagai destinasi wisata utama.',
+            address: 'Jl. Raya Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Area+Parkir+Tulungrejo+Kota+Batu',
+            social: { instagram: '#', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        'cafe-sawah': {
+            name: 'Cafe Sawah & Resto',
+            icon: '☕',
+            category: 'Kuliner & Kafe',
+            description: 'Kafe unik yang berada di tengah sawah dengan pemandangan hijau yang menenangkan. Menyajikan berbagai menu kopi, makanan tradisional, dan nusantara.',
+            address: 'Area Persawahan Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Cafe+Sawah+Tulungrejo+Kota+Batu',
+            social: { instagram: 'https://www.instagram.com/explore/tags/cafesawahlombok/', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        kebunapel: {
+            name: 'Kebun Apel Petik Langsung',
+            icon: '🍎',
+            category: 'Kuliner & Belanja',
+            description: 'Kebun apel yang membuka wahana petik apel langsung untuk wisatawan. Nikmati apel segar langsung dari pohonnya di perkebunan apel khas Batu.',
+            address: 'Dusun Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Kebun+Apel+Tulungrejo+Kota+Batu',
+            social: { instagram: 'https://www.instagram.com/explore/locations/1032787981/kebun-apel-batu/', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        villa: {
+            name: 'Villa & Penginapan',
+            icon: '🏡',
+            category: 'Penginapan',
+            description: 'Berbagai pilihan villa dan penginapan nyaman di kawasan Tulungrejo. Udara sejuk, pemandangan gunung, dan suasana pedesaan yang tenang.',
+            address: 'Kawasan Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.google.com/?q=Villa+Tulungrejo+Kota+Batu',
+            social: { instagram: '#', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+mikutovia: {
+            name: 'Mikutovia',
+            icon: '🏔️',
+            category: 'Wisata Alam',
+            description: 'Destinasi wisata alam baru di kawasan Tulungrejo dengan pemandangan pegunungan yang indah. Tempat yang sempurna untuk menikmati udara segar dan panorama alam Kota Batu dari ketinggian.',
+            address: 'Kawasan Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.app.goo.gl/gA99hecYGcZKKvASA',
+            social: { instagram: 'https://www.instagram.com/mikutovia/', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        cobantalun: {
+            name: 'Coban Talun Waterfall',
+            icon: '🏞️',
+            category: 'Wisata Alam',
+            description: 'Air terjun Coban Talun yang indah di kawasan Tulungrejo. Tempat wisata alam dengan pemandangan air terjun yang segar dan dikelilingi pepohonan hijau yang rindang. Cocok untuk refreshing dan foto-foto.',
+            address: 'Kawasan Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.app.goo.gl/KLHqUMRjviZ42M7N7?g_st=ic',
+            social: { instagram: '#', facebook: '#', youtube: '#', tiktok: '#' }
+        },
+        stroberi: {
+            name: 'Petik Stroberi Kebun Desa (Yeni)',
+            icon: '🍓',
+            category: 'Kuliner & Belanja',
+            description: 'Kebun stroberi milik Ibu Yeni yang membuka wahana petik stroberi langsung. Nikmati stroberi segar langsung dari kebunnya di kawasan Desa Tulungrejo. Cocok untuk wisata keluarga dan anak-anak.',
+            address: 'Kebun Desa, Dusun Tulungrejo, Kec. Bumiaji, Kota Batu',
+            mapsUrl: 'https://maps.app.goo.gl/6f5wDirCE6xUG4Tb9?g_st=ic',
+            social: { instagram: '#', facebook: '#', youtube: '#', tiktok: '#' }
+        }
+    };
+
+    function openPanel(id) {
+        const data = placesData[id];
+        if (!data) return;
+
+        const panel = document.getElementById('sidePanel');
+        const inner = document.getElementById('panelInner');
+        const map = document.getElementById('mapContainer');
+
+        document.querySelectorAll('.landmark.active').forEach(el => el.classList.remove('active'));
+        const el = document.getElementById('m-' + id);
+        if (el) el.classList.add('active');
+
+        const insta = data.social.instagram && data.social.instagram !== '#';
+        const fb = data.social.facebook && data.social.facebook !== '#';
+        const yt = data.social.youtube && data.social.youtube !== '#';
+        const tt = data.social.tiktok && data.social.tiktok !== '#';
+
+        let socialHtml = '';
+        if (insta || fb || yt || tt) {
+            socialHtml = `
+                <div class="social-section">
+                    <h4><i class="fas fa-share-alt"></i> Ikuti Kami di</h4>
+                    <div class="social-links">
+                        ${insta ? `<a href="${data.social.instagram}" target="_blank" rel="noopener" class="sosmed-instagram"><i class="fab fa-instagram"></i> Instagram</a>` : ''}
+                        ${fb ? `<a href="${data.social.facebook}" target="_blank" rel="noopener" class="sosmed-facebook"><i class="fab fa-facebook-f"></i> Facebook</a>` : ''}
+                        ${yt ? `<a href="${data.social.youtube}" target="_blank" rel="noopener" class="sosmed-youtube"><i class="fab fa-youtube"></i> YouTube</a>` : ''}
+                        ${tt ? `<a href="${data.social.tiktok}" target="_blank" rel="noopener" class="sosmed-tiktok"><i class="fab fa-tiktok"></i> TikTok</a>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        inner.innerHTML = `
+            <div class="panel-header">
+                <div class="panel-icon">${data.icon}</div>
+                <div class="panel-title">
+                    <h2>${data.name}</h2>
+                    <p>${data.category}</p>
+                </div>
+                <button class="panel-close" onclick="closePanel()">&times;</button>
+            </div>
+            <div class="panel-body">
+                <div class="desc">${data.description}</div>
+                <div class="info-row">
+                    <i class="fas fa-map-pin"></i>
+                    <span>${data.address}</span>
+                </div>
+                ${socialHtml}
+                <div class="maps-section">
+                    <h4><i class="fas fa-map-marked-alt"></i> Lokasi Google Maps</h4>
+                    <a href="${data.mapsUrl}" target="_blank" rel="noopener" class="maps-btn">
+                        <i class="fab fa-google"></i> Buka di Google Maps
+                    </a>
+                </div>
+            </div>
+        `;
+
+        panel.classList.add('open');
+        map.classList.add('shrink');
+    }
+
+    function closePanel() {
+        document.getElementById('sidePanel').classList.remove('open');
+        document.getElementById('mapContainer').classList.remove('shrink');
+        document.querySelectorAll('.landmark.active').forEach(el => el.classList.remove('active'));
+    }
+
+    function filterLandmarks() {
+        const input = document.getElementById('searchInput').value.toLowerCase().trim();
+        const landmarks = document.querySelectorAll('.landmark');
+        let count = 0;
+        landmarks.forEach(lm => {
+            const name = lm.getAttribute('data-name') || '';
+            if (name.toLowerCase().includes(input)) {
+                lm.classList.remove('muted');
+                count++;
+            } else {
+                lm.classList.add('muted');
+            }
+        });
+        document.getElementById('searchCount').textContent = count;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('searchCount').textContent = document.querySelectorAll('.landmark:not(.muted)').length;
+
+        const panel = document.getElementById('sidePanel');
+        const inner = document.getElementById('panelInner');
+        panel.classList.add('open');
+        document.getElementById('mapContainer').classList.add('shrink');
+
+        inner.innerHTML = `
+            <div class="panel-header" style="background: linear-gradient(135deg, #2c3e50, #34495e);">
+                <div class="panel-icon">🏘️</div>
+                <div class="panel-title">
+                    <h2>Desa Tulungrejo</h2>
+                    <p>Kec. Bumiaji • Kota Batu</p>
+                </div>
+                <button class="panel-close" onclick="closePanel()">&times;</button>
+            </div>
+            <div class="panel-body">
+                <div class="desc">
+                    <b>Desa Tulungrejo</b> adalah salah satu desa di <b>Kecamatan Bumiaji, Kota Batu, Jawa Timur</b>. 
+                    Terletak di lereng <b>Gunung Panderman</b> dan <b>Gunung Arjuno</b>, desa ini memiliki 
+                    udara sejuk khas pegunungan dengan suhu rata-rata 18-24°C.
+                </div>
+                <div class="desc">
+                    📍 <b>Luas Wilayah:</b> ± 1.200 hektar<br>
+                    📍 <b>Ketinggian:</b> 900-1.200 mdpl<br>
+                    📍 <b>Mata Pencaharian:</b> Pertanian (apel, jeruk, sayur), Pariwisata<br>
+📍 <b>Jumlah Penduduk:</b> ± 10.000 jiwa
+                </div>
+                <div class="desc">
+                    🌟 <b>Destinasi Unggulan:</b> Flora San Terra, Selecta, Pemandian Air Panas Cangar, 
+                    Pura Luhur Giri Arjuna, Taman Dolan, Kebun Apel, dan Cafe Sawah.
+                </div>
+                <div class="social-section">
+                    <h4><i class="fas fa-share-alt"></i> Media Sosial Desa</h4>
+                    <div class="social-links">
+                        <a href="https://www.instagram.com/pemdes_tulungrejo/" target="_blank" rel="noopener" class="sosmed-instagram"><i class="fab fa-instagram"></i> Instagram</a>
+                        <a href="https://www.facebook.com/DesaTulungrejoBatu/" target="_blank" rel="noopener" class="sosmed-facebook"><i class="fab fa-facebook-f"></i> Facebook</a>
+                        <a href="https://www.youtube.com/@PemdesTulungrejoBatu" target="_blank" rel="noopener" class="sosmed-youtube"><i class="fab fa-youtube"></i> YouTube</a>
+                    </div>
+                </div>
+                <div class="maps-section">
+                    <h4><i class="fas fa-map-marked-alt"></i> Lokasi Desa</h4>
+                    <a href="https://maps.google.com/?q=Desa+Tulungrejo+Kota+Batu" target="_blank" rel="noopener" class="maps-btn">
+                        <i class="fab fa-google"></i> Buka di Google Maps
+                    </a>
+                </div>
+            </div>
+        `;
+    });
+</script>
+
+</body>
+</html>
